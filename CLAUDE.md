@@ -1,0 +1,139 @@
+# MOT Firmware Learning — Project Context
+
+This repository is a **learning knowledge base**, not a software project.
+
+**Purpose:** the user learns the MOT embedded firmware by asking questions in chat. Every
+answer is captured into `Learning-Docs/` so it can be revised later — the goal is to never
+repeat the same research twice.
+
+**The user reads the chat, not the docs.** Docs are written for their future self. This means
+the chat explanation must be complete and standalone on its own, and the docs must be complete
+and standalone on their own. Neither one is a summary of the other.
+
+---
+
+## Paths
+
+**Working directory:** `C:\Users\oml\Documents\BitBucket\Docs`
+
+| What | Where |
+|---|---|
+| All learning documentation | `Learning-Docs/` |
+| Roadmap, status, session log | `Learning-Docs/README.md` |
+| Index of every question asked | `Learning-Docs/QUESTIONS_INDEX.md` |
+| The learning workflow | `.claude/skills/learn-firmware/SKILL.md` |
+| Firmware source — **READ ONLY** | `../MOT/<REPO>/` e.g. `../MOT/MOT-ELVH-STM8/` |
+| Old exported chats (reference) | `Learning-Docs/Chats/` |
+
+> ⚠️ `Learning-Docs/` is a **git repository containing documentation only**
+> (`github.com/ladumor-om/Learning-Docs.git`). Never place agent config, skills, or workflow
+> files inside it. Those live at this level, outside the docs repo.
+
+> ⚠️ `../MOT/Docs/` is **unrelated** to this knowledge base — Jetson setup notes, PDFs,
+> deployment scripts. Never write there, never treat it as documentation.
+
+> ⚠️ `Learning-Docs/Chats/` contains ~189,000 lines across 5 files (one is 162k lines alone).
+> **Grep these, never read them whole.** They are a searchable archive of prior sessions.
+
+## Two IDEs
+
+The user also works from **Antigravity** at home, using its own generated agent/skill config.
+`.claude/skills/learn-firmware/SKILL.md` is the **complete, self-contained source of truth** for
+the workflow — it is what gets handed to Antigravity to generate its equivalent. Keep it whole
+and standalone; never reduce it to a pointer to another file.
+
+---
+
+## Hard rules
+
+1. **Never modify firmware source.** Everything under `../MOT/` is read-only. All documentation
+   writes go inside `Learning-Docs/`.
+2. **Answer in chat first, then update docs.** Never reply with "I've updated the docs" as the
+   answer. The chat response must contain the actual explanation.
+3. **Verify against source.** Never answer a firmware question from assumption or from what a
+   placeholder doc claims. Open the real `.c`/`.h` files. Existing stub docs were written from
+   guesses and contain known errors.
+4. **Every answer updates the docs.** See the skill for the required sweep. An answered question
+   that left no trace in `Learning-Docs/` is an incomplete turn.
+5. **Never link to a placeholder.** If a doc needs to reference `I2C.md` and `I2C.md` is still a
+   stub, fill it in first.
+6. **Child before parent.** Explain callees before callers, always.
+
+---
+
+## When any firmware or embedded question is asked
+
+Load and follow **`.claude/skills/learn-firmware/SKILL.md`** in full. This applies whether or
+not the user typed `/learn-firmware` — a bare question about I2C, a register, a clock tree, or
+any MOT firmware triggers the same workflow.
+
+---
+
+## Explanation style (confirmed user preferences)
+
+- **Register level, not API level.** Show what bits change, not just which function was called.
+- **BEFORE/AFTER bit diagrams** for every single register write. ASCII box drawings.
+- **Memory addresses and hex values** — show where data physically lives and how it moves.
+- **State WHO acts:** "Hardware sets this flag", "Software must clear it by reading DR".
+- **Graphics over prose:** flow diagrams (mermaid), waveforms, block diagrams, timing tables.
+- **Analogies** to everyday things land well (brain/body for CPU/MCU).
+- **Answer the "why", not only the "what".** The user asks conceptual questions
+  ("Is NVIC hardware or firmware?"). Address the underlying concept, don't deflect.
+- **Theory first, then the actual code** that uses it.
+- **Timing in µs/ms** wherever it can be stated.
+- **Completeness over brevity** — but structured, with headings, so it stays readable.
+
+### Docs must be scannable, not heavy
+
+The user does not read docs linearly — they scan to revise, or hand the file to an LLM to
+summarise. Both reward structure over prose. Full rules in the skill; the essentials:
+
+- **Bottom line first** in every section — one bold conclusion line, detail underneath.
+- **Tables over prose** for anything with parallel items.
+- **Diagrams replace paragraphs**, never accompany a paragraph saying the same thing.
+- **`<details>` for depth** — derivations, long listings, edge cases, interview answers.
+- **Recap box at the top of every file** — the whole file in ~8 lines.
+- **No filler**, no paragraph over 3–4 lines, split files at ~700 lines.
+
+---
+
+## The three documentation layers
+
+Knowledge flows **both ways** between these layers — every session, in both directions.
+
+```
+Layer 1: FUNDAMENTALS              Layer 2: CONTROLLERS
+Fundamentals/*.md                  Controllers/STM8.md
+Protocols/*.md                     Controllers/STM32.md
+Libraries/*.md                     Controllers/ESP32.md
+        \                                 /
+         \                               /
+          Layer 3: FIRMWARE (project-specific)
+          Firmware/<REPO>/FIRMWARE_GUIDE.md
+          Firmware/<REPO>/REAL_TIME_EXAMPLES.md
+```
+
+| Layer | Content | Project notes ("In MOT") |
+|---|---|---|
+| **Fundamentals / Protocols / Libraries** | Complete, deep, **project-agnostic**. Industry-standard. Someone outside this company could learn the topic from it. | ❌ Never |
+| **Controllers** | Brief concept summary + how *this MCU* implements it + config + link down to Fundamentals for the deep dive. | ✅ Yes |
+| **Firmware** | Code walkthroughs and execution traces. References the layers above. | ✅ Yes |
+
+**Top-down** = the learning path (theory → MCU → code).
+**Bottom-up** = enrichment: firmware reveals a new concept → it flows *up* into Fundamentals
+and Controllers. A new crystal type, a new peripheral mode, a new protocol quirk — all of it
+goes up, so the next firmware benefits.
+
+Full content-distribution and linking rules live in the skill.
+
+---
+
+## Status legend
+
+Used in `Learning-Docs/README.md` and in every guide's coverage table.
+
+| Mark | Meaning |
+|---|---|
+| ✅ | Complete — verified against source, cross-referenced |
+| 🟡 | Partial — some sections done, coverage table shows what |
+| ⬜ | Placeholder / not started — **do not trust its contents** |
