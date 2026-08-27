@@ -57,18 +57,107 @@ Q2: why PWM instead of analog out?
 > same upward sweep into Fundamentals / Controllers / Protocols as a full walkthrough would.
 > The entry point changes. The sweep never does.
 
+### When the user already knows part of it
+
+They may say so outright — *"I already understand the I2C init and PWM output"* — or it may be
+obvious from how the question is phrased.
+
+- **Skip it in chat.** Do not re-explain what they told you they know. It wastes the session and
+  reads as not listening.
+- **Do not skip it in the docs.** The docs are for their future self, who will have forgotten.
+  A guide with a hole in it where the user happened to already be expert is a broken guide.
+- Say one line confirming what you're skipping, so a wrong assumption gets caught early.
+
+---
+
+## What a good explanation contains
+
+The bar is not "technically correct". It is **the user finishes reading and actually understands
+the hardware**. Concretely, a good answer about firmware code contains:
+
+**1. Line by line, not summarised.** For any code that touches hardware — register writes, bit
+manipulation, init sequences — walk every line. Boilerplate (includes, guards, trivial getters)
+may be grouped, but never a register write.
+
+**2. Register BEFORE/AFTER, with the actor named.** Every write. "Hardware sets this on the next
+edge", "software must clear it by reading DR".
+
+**3. Mathematics derived, never asserted.** State the formula, substitute the real values, then
+compute. Show the intermediate numbers:
+
+```
+FREQR = 2        → f_MASTER = 2 MHz  → t_MASTER = 0.5 µs
+CCR   = 40
+
+T_SCL = 2 × CCR × t_MASTER = 2 × 40 × 0.5 µs = 40 µs
+f_SCL = 1 / T_SCL          = 1 / 40 µs       = 25 kHz
+```
+
+Never write "this gives 25 kHz" without the two lines above it.
+
+**4. Plain-English restatement.** After the technical walkthrough, say what the code means in
+one human sentence: *"Set my timer to 2 MHz, then slow SCL down by a factor of 80."*
+
+**5. What breaks if it is wrong.** The consequences of misconfiguration are often where the real
+understanding lives. Wrong FREQR → wrong SCL frequency → slave NACKs → silent read failure. Say
+that explicitly.
+
+**6. Flag the code when the code is questionable.** If the firmware's own numbers don't add up,
+say so plainly instead of narrating them as correct. Real example worth remembering:
+
+> `CCR = 40` produces 25 kHz on a 2 MHz peripheral clock — not the 100 kHz the comment claims.
+> That value was calculated for an 8 MHz clock. It still works because the sensor tolerates slow
+> SCL, but the comment is wrong.
+
+This is the single highest-value thing these sessions produce. Never smooth it over.
+
+**7. A closing summary table.** End any detailed section with a compact table of what was set:
+
+| Register | Value | Meaning |
+|---|---|---|
+| `FREQR` | 2 | Peripheral clock = 2 MHz |
+| `CCRL` | `0x28` | CCR low byte = 40 → SCL 25 kHz |
+
+**8. An analogy** where the concept is abstract, and **a diagram** where the flow is spatial or
+temporal — signal path, clock division chain, state machine, bus waveform.
+
+### What a bad answer looks like
+
+```
+❌ "The I2C is configured for standard mode with a 2 MHz clock."
+❌ "FREQR is set to 2 for a 2 MHz peripheral clock."     ← restates code, explains nothing
+❌ "This gives 25 kHz."                                  ← no derivation
+❌ "I've updated I2C.md with the full explanation."       ← never acceptable as the answer
+```
+
+Each is *true* and *useless*. The test: could the user have gotten this by reading the code
+themselves? If yes, it isn't an explanation.
+
 ---
 
 ## Before answering anything
 
-1. Read `Learning-Docs/README.md` — status, roadmap, session log.
-2. Identify the MCU. If `Learning-Docs/Controllers/<MCU>.md` is ⬜, that is a **prerequisite**:
-   say so, and offer to build it first (see Phase 1).
-3. **Read the actual source** in `../MOT/<REPO>/`. List the real files — placeholder guides
-   contain wrong filenames and invented function names. Never answer from a stub.
-4. Read the relevant ✅ docs to match established style and avoid contradicting them.
-5. For deep questions, verify against the datasheet / reference manual. Search the web if the
-   register behaviour is not certain. Never guess at silicon behaviour.
+**Read what the answer needs — then answer. Load the rest afterwards.**
+
+Do not make the user wait while ten context files are opened. But "fast" never means "guessed":
+
+**Required before answering (non-negotiable):**
+
+1. **The actual source files** the question is about, in `../MOT/<REPO>/`. Placeholder guides
+   contain wrong filenames and invented function names — never answer from a stub, and never
+   from memory of what the firmware "probably" does.
+2. **The datasheet / reference manual** for any register or silicon behaviour you are not
+   certain of. Search the web if needed. Never guess at hardware behaviour — a confidently
+   wrong register explanation is worse than no answer.
+
+**Load during or after the answer, before the doc sweep:**
+
+3. `Learning-Docs/README.md` — status, roadmap, session log.
+4. The relevant ✅ docs — to match established style and avoid contradicting them.
+5. `Architecture/MOT_System_Architecture.md` when the question crosses board boundaries.
+
+**One exception that comes first:** identify the MCU, and if `Controllers/<MCU>.md` is ⬜, say so
+up front — it is a prerequisite, and the user may want it built before going further (Phase 1).
 
 ---
 
@@ -221,9 +310,14 @@ hierarchy. Identify entry point, init order, main loop, peripherals, protocols. 
 upstream/downstream firmware to know what data arrives and what leaves.
 
 **Phase 3 — `FIRMWARE_GUIDE.md`.** Written in **execution order**, from `main()` (STM32/STM8) or
-`setup()`→`loop()` (ESP32). Overview and hardware · architecture and file map · init sequence,
-function by function · main loop, **children before parents** · data flow and timing · error
-handling. Mermaid diagrams, ASCII register bit layouts, annotated code, timing tables.
+`setup()`→`loop()` (ESP32). Overview and hardware · architecture and file map · **State Flow
+Diagram** (the firmware's state machine) · **Program Flow Diagram** (execution path from the
+entry point) · init sequence, function by function · main loop, **children before parents** ·
+data flow and timing · error handling. Mermaid diagrams, ASCII register bit layouts, annotated
+code, timing tables.
+
+Both flow diagrams are mandatory, not optional — they are the fastest way back into a firmware
+months later, and they are what a stub guide can never give.
 
 **Phase 4 — `REAL_TIME_EXAMPLES.md`.** 2–5 complete traces. Simple firmware: power-on + init,
 one full loop cycle. FreeRTOS: one command per task, packet arrival → response. Each trace
@@ -346,6 +440,90 @@ paragraph longer than 3–4 lines.**
 **7. Split at ~700 lines.** Past that, re-reading hurts and summarising goes lossy. Follow the
 `Protocols/OPC_UA/` pattern — a subfolder with numbered files.
 
+### The register card — the standard format for documenting a register
+
+Every register documented in a `Controllers/` doc uses this shape. It is a **lookup card**, not
+prose:
+
+````markdown
+#### I2C_CR2 — Control Register 2 · `0x5211` · reset `0x00`
+
+┌─────┬───┬───┬───┬────┬─────┬───┬───┐
+│  7  │ 6 │ 5 │ 4 │ 3  │  2  │ 1 │ 0 │
+├─────┼───┼───┼───┼────┼─────┼───┼───┤
+│SWRST│ - │POS│ACK│STOP│START│ - │ - │
+└─────┴───┴───┴───┴────┴─────┴───┴───┘
+
+| Bit | Name | 0 | 1 | Cleared by |
+|---|---|---|---|---|
+| 0 | START | no start | generate START | hardware, after START is sent |
+| 1 | STOP | no stop | generate STOP | hardware, after STOP is sent |
+| 2 | ACK | NACK returned | ACK returned after each byte | software |
+| 7 | SWRST | normal | peripheral held in reset | software |
+
+⚠ **Constraint:** `PE` in CR1 must be 0 while configuring FREQR/CCR.
+
+**Used in this firmware:**
+`i2c_drv.c:41` → `I2C->CR2 |= I2C_CR2_START;`  (start a read transaction)
+`i2c_drv.c:58` → `I2C->CR2 &= ~I2C_CR2_ACK;`   (NACK the final byte)
+````
+
+Three parts that are easy to skip and shouldn't be:
+
+- **Reset value in the heading.** It is the baseline for every BEFORE/AFTER diagram. Without it,
+  "BEFORE" is a guess.
+- **"Cleared by" column.** Hardware-cleared vs software-cleared is the single most common source
+  of real bugs. Never omit it.
+- **"Used in this firmware" with `file:line`.** This is what makes the reference doc and the
+  firmware guide one system instead of two disconnected documents.
+
+Each `Controllers/` doc also ends with a **quick-reference appendix**: the pin table with
+project-used pins marked in bold, and the bit-mask `#define` block for copy-paste.
+
+---
+
+## Anti-bloat rules
+
+**Why these exist.** A previous tool's docs for this one firmware, which the user abandoned
+unread: **14,587 lines** · **71% ASCII diagrams vs 2.6% tables** · **81 H4 headings** · **531
+lines on one function** · one register re-explained **34 times**. Only ~26% was prose and no
+paragraph was long — it failed on **uniform emphasis**, not word count. So "write less" is not
+the fix, and these rules override the general "use diagrams" guidance wherever they conflict.
+
+**1. Tabular data is a table, never an ASCII box.** Bit fields, options, comparisons, pin maps,
+timings, error codes. Reserve ASCII drawing for what is genuinely spatial or temporal: register
+bit layouts, waveforms, signal paths, state machines, memory maps. If you are drawing a box to
+hold rows of `name → meaning`, that is a table.
+
+**2. Budget per function: ~40–80 lines.** A typical function walkthrough fits there. If it needs
+more, one of three things is true and you must pick one:
+
+- the excess is depth → move it into `<details>`
+- the function genuinely does several jobs → split by job, with real headings
+- you are re-explaining a register → link to its card instead (rule 4)
+
+531 lines for one I2C read function is a defect, not thoroughness.
+
+**3. Heading depth stops at H3.** No H4, ever. Four levels means you have not decided what is a
+peer and what is detail. If you reach for a fourth, it belongs in its own file, in a `<details>`
+block, or as a table row.
+
+**4. Each register is explained once, in one place.** Its card lives in `Controllers/<MCU>.md`.
+Firmware guides link to the card and add only what is specific to the call site: which bits this
+line changes, and why *here*. In the failed document `SR1` was re-explained 34 times across the
+walkthrough while its reference card sat unread in another section.
+
+**5. Never create a supplement file.** No `ADDITIONAL_EXPLANATIONS.md`, `DETAILED_CONCEPTS.md`,
+`MORE_NOTES.md`, `PART_2.md`. The failed document had two, and their names are the diagnosis: the
+main document did not land, so content was bolted on beside it. If a doc needs a supplement, the
+doc is wrong — fix it, or split by **topic** with names that say what is inside (the `OPC_UA/`
+and `STM32/` pattern).
+
+**6. Every file opens with a recap.** A 50-line table of contents is not an entry point to 7,000
+lines. The recap is what makes a large doc usable: read 8 lines, decide whether to go deeper.
+
+---
+
 ### Fixed section skeletons
 
 Predictable positions mean the user scans instead of searches.
@@ -354,7 +532,7 @@ Predictable positions mean the user scans instead of searches.
 |---|---|
 | **Protocols/** | Recap → Why it exists → Frame structure → Electrical & signals → Transaction sequence → Errors & failure modes → vs. sibling protocols → Real-world use → Q&A → Interview questions |
 | **Fundamentals/** | Recap → Concept → How it works (hardware level) → Configuration & usage → Trade-offs → Common mistakes → Q&A → Interview questions |
-| **Controllers/** | Recap → Architecture → Memory map → Clock → Peripherals (one section each, each linking down to Fundamentals) → Boot & toolchain → In MOT → Q&A → Interview questions |
+| **Controllers/** | Recap → Architecture → Memory map → Clock → Peripherals (one section each: **register cards** + link down to Fundamentals) → Boot & toolchain → In MOT → **Quick-reference appendix** (pin table, bit-mask defines) → Q&A → Interview questions |
 | **Firmware/** | Recap → Coverage table → Hardware & wiring → File map → Init sequence → Main loop (children before parents) → Data flow & timing → Error handling → Q&A → Interview questions |
 
 ### Formatting
@@ -364,3 +542,8 @@ comparisons, pin maps, timing · code blocks with inline `// ←` annotations ·
 parents · BEFORE/AFTER for every register write · always name the actor ("hardware sets",
 "software must clear") · timing in µs/ms · concepts live in Fundamentals/ and get referenced,
 never duplicated.
+
+Also mandatory in firmware docs, per **What a good explanation contains** above:
+State Flow and Program Flow diagrams · every formula shown as formula → substitution → result ·
+a closing summary table on each detailed section · a "what breaks if wrong" note wherever a
+value could be misconfigured · bus waveforms (UART bit timing, I2C SDA/SCL) in execution traces.
